@@ -1,6 +1,9 @@
-FROM python:3.7.4-slim-stretch
+FROM python:3.6.9-slim-stretch
 
-COPY . /app
+ADD setup/ /tmp/setup
+ENV MOODLE_MLBACKEND_PYTHON_VERSION 2.3.0
+RUN /tmp/setup/download-mlbackend-python.sh
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir -e .
