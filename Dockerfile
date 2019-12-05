@@ -1,4 +1,4 @@
-FROM python:3.6.9-slim-stretch
+FROM python:3.7.5-slim-stretch
 
 ADD setup/ /tmp/setup
 ENV MOODLE_MLBACKEND_PYTHON_VERSION 2.3.0
