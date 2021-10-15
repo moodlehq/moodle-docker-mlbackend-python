@@ -13,4 +13,4 @@ ENV MOODLE_MLBACKEND_PYTHON_DIR=/opt/mlbackenddata
 ENV MOODLE_MLBACKEND_PYTHON_USERS=default:sshhhh
 
 ENTRYPOINT ["python"]
-CMD ["webapp.py"]
+CMD ["webapp.py", "--world-visible"]
