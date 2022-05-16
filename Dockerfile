@@ -1,7 +1,7 @@
 FROM python:3.7.5-slim-stretch
 
 ADD setup/ /tmp/setup
-ENV MOODLE_MLBACKEND_PYTHON_VERSION 3.0.4
+ENV MOODLE_MLBACKEND_PYTHON_VERSION 3.0.5
 RUN /tmp/setup/download-mlbackend-python.sh
 
 WORKDIR /app
