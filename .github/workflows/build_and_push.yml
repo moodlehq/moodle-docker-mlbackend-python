@@ -1,0 +1,106 @@
+name: Docker multiarch publish
+
+on: [push, workflow_dispatch]
+env:
+  REPOSITORY: moodle-docker-mlbackend-python
+jobs:
+  check-env:
+    # We need to check if at least one of the repository is defined
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.checks.outputs.defined }}
+    steps:
+      - id: checks
+        env:
+          GH_OWNER: ${{ secrets.GH_OWNER }}
+          DOCKERHUB_OWNER: ${{ secrets.DOCKERHUB_OWNER }}
+        if: env.GH_OWNER != '' || env.DOCKERHUB_OWNER != ''
+        run: echo "defined=true" >> $GITHUB_OUTPUT
+
+  build-docker:
+    needs: [check-env]
+    # Completely avoid forks to try this workflow.
+    runs-on: ubuntu-latest
+    env:
+      GH_OWNER: ${{ secrets.GH_OWNER }}
+      DOCKERHUB_OWNER: ${{ secrets.DOCKERHUB_OWNER }}
+    if: needs.check-env.outputs.checks == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      # Calculate the tags to be pushed to the registries.
+      - name: Calculate image tag names for Dockerhub
+        if: env.GH_OWNER != ''
+        id: calculatetagsdhub
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            ${{ env.DOCKERHUB_OWNER }}/${{ env.REPOSITORY }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+      - name: Calculate image tag names for GCR
+        if: env.GH_OWNER != ''
+        id: calculatetagsgcr
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ghcr.io/${{ env.GH_OWNER }}/${{ env.REPOSITORY }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+      # https://github.com/docker/setup-qemu-action#usage
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      # https://github.com/marketplace/actions/docker-setup-buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # https://github.com/docker/login-action#docker-hub
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_OWNER != '' }}
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # https://github.com/docker/login-action#github-container-registry
+      - name: Login to GitHub Container Registry
+        if: env.GH_OWNER != ''
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ env.GH_OWNER }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
+      # https://github.com/docker/build-push-action#multi-platform-image
+      - name: Build and push to Docker Hub
+        if: env.DOCKERHUB_OWNER != ''
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.calculatetagsdhub.outputs.tags }}
+
+      - name: Build and push to Github registries
+        if: ${{ env.GH_OWNER != '' }}
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.calculatetagsgcr.outputs.tags }}
+
+      # Note that we only update the description with the main branch version.
+      - name: Set Docker Hub description from README.md
+        if: github.ref == 'refs/heads/main' && env.DOCKERHUB_OWNER != ''
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_OWNER }}/${{ env.REPOSITORY }}
